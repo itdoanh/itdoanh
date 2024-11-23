@@ -66,3 +66,48 @@ INSERT INTO HuongDan (masv, madt, magv, ketqua) VALUES
 (103, 'DT03', 3, 9),
 (104, 'DT01', 1, 6);
 GO
+
+SELECT g.magv, g.hotengv, k.tenkhoa
+FROM GiangVien g
+JOIN Khoa k ON g.makhoa = k.makhoa;
+
+SELECT g.magv, g.hotengv, k.tenkhoa
+FROM GiangVien g
+JOIN Khoa k ON g.makhoa = k.makhoa
+JOIN HuongDan hd ON g.magv = hd.magv
+GROUP BY g.magv, g.hotengv, k.tenkhoa
+HAVING COUNT(hd.masv) >= 3;
+
+SELECT s.masv, s.hotensv
+FROM SinhVien s
+LEFT JOIN HuongDan hd ON s.masv = hd.masv
+WHERE hd.ketqua IS NULL;
+
+SELECT k.dienthoai
+FROM SinhVien s
+JOIN Khoa k ON s.makhoa = k.makhoa
+WHERE s.hotensv = 'Le Van Son';
+
+SELECT d.madt, d.tendt
+FROM DeTai d
+JOIN HuongDan hd ON d.madt = hd.madt
+GROUP BY d.madt, d.tendt
+HAVING COUNT(hd.masv) > 2;
+
+SELECT madt, tendt
+FROM DeTai
+WHERE kinhphi = (SELECT MAX(kinhphi) FROM DeTai);
+
+SELECT k.tenkhoa, COUNT(s.masv) AS so_luong_sinhvien
+FROM Khoa k
+LEFT JOIN SinhVien s ON k.makhoa = s.makhoa
+GROUP BY k.tenkhoa;
+
+SELECT s.masv, s.hotensv, hd.ketqua
+FROM SinhVien s
+JOIN HuongDan hd ON s.masv = hd.masv
+WHERE s.makhoa IN ('K02', 'K03');
+
+SELECT s.masv, s.hotensv, (YEAR(CURRENT_DATE) - s.namsinh) AS tuoi
+FROM SinhVien s
+WHERE s.makhoa = 'K01';

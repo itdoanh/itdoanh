@@ -2,4 +2,64 @@ Hi fellows👋
 - 👋 Hi, I’m Đoàn Văn Doanh
 - 📫 How to reach me: <a href="https://fb.com/itdoanh">Facebook</a>
 
-[![spotify-github-profile](https://spotify-github-profile.vercel.app/api/view?uid=31nl4s2oxejifnez635jweh5ggfi&cover_image=true&theme=default&show_offline=false&background_color=121212&interchange=false)](https://github.com/kittinan/spotify-github-profile)
+
+CREATE DATABASE bai_tap_1
+GO
+
+USE bai_tap_1
+GO
+
+CREATE TABLE KHACHHANG(
+ ma_kh CHAR(10) NOT NULL,
+ ho_ten VARCHAR(30) NOT NULL,
+ n_sinh DATE,
+ dia_chi VARCHAR (255),
+ so_dt VARCHAR(13),
+ ngay_mh DATE,
+ gia_tri_hd DECIMAL(18,0) DEFAULT 0,
+ CONSTRAINT pk_KHACHHANG PRIMARY KEY(ma_kh),
+ CONSTRAINT uq_KHACHHANG UNIQUE (so_dt)
+ )
+ GO
+
+CREATE TABLE NHANVIEN(
+ ma_nv CHAR(10) NOT NULL,
+ ten_nv VARCHAR(30) NOT NULL,
+ so_dt VARCHAR(13),
+ ngay_vao_lam DATE,
+ CONSTRAINT pk_NHANVIEN PRIMARY KEY(ma_nv),
+ CONSTRAINT uq_NHANVIEN UNIQUE (so_dt)
+ )
+ GO
+
+CREATE TABLE SANPHAM(
+ ma_sp CHAR(10) NOT NULL,
+ ten_sp VARCHAR(30),
+ dvt VARCHAR(50),
+ noi_sx VARCHAR(255),
+ don_gia DECIMAL(18,2),
+ CONSTRAINT pk_SANPHAM PRIMARY KEY(ma_sp)
+ )
+ GO
+
+CREATE TABLE HOADON(
+ ma_hd CHAR(10) NOT NULL,
+ t_gian DATE,
+ ma_kh CHAR(10) NOT NULL,
+ ma_nv CHAR(10) NOT NULL,
+ gia_tri_hd DECIMAL(18,0) DEFAULT 0,
+ CONSTRAINT pk_HOADON PRIMARY KEY(ma_hd),
+ CONSTRAINT fk_HOADON_ma_kh FOREIGN KEY(ma_kh) REFERENCES KHACHHANG(ma_kh),
+ CONSTRAINT fk_HOADON_ma_nv FOREIGN KEY(ma_nv) REFERENCES NHANVIEN(ma_nv)
+ )
+ GO
+
+CREATE TABLE CTHOPDONG(
+ ma_hd CHAR(10) NOT NULL,
+ ma_sp CHAR(10) NOT NULL,
+ so_luong INT,
+ CONSTRAINT pk_CTHOPDONG PRIMARY KEY(ma_hd, ma_sp),
+ CONSTRAINT fk_CTHOPDONG_ma_hd FOREIGN KEY(ma_hd) REFERENCES HOADON(ma_hd),
+ CONSTRAINT fk_CTHOPDONG_ma_sp FOREIGN KEY(ma_sp) REFERENCES SANPHAM(ma_sp)
+ )
+ GO

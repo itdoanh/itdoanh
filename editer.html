@@ -5,9 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Code Project Editor — JSON bundle (no DB)</title>
   <!-- Ace Editor (CDN) -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.9/ace.js" integrity="sha512-3f78JYQ8X+4sS41cVEWOX5aurm4+0z0bD4YhQxFgy1zj+Eo7aK97kzE4Ahd5jO2zR3JmYcQO7q5GmKqf2Rk9ZQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.9/ext-language_tools.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.9/ext-modelist.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <script src="https://cdn.jsdelivr.net/npm/ace-builds@1.43.3/src-min-noconflict/ace.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/ace-builds@1.43.3/src-min-noconflict/ext-language_tools.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/ace-builds@1.43.3/src-min-noconflict/ext-modelist.js"></script>
+  <script>ace.config.set('basePath','https://cdn.jsdelivr.net/npm/ace-builds@1.43.3/src-min-noconflict');</script>
   <style>
     :root { --bg:#0f1220; --panel:#171a2b; --text:#e8eaf2; --muted:#a9aec4; --brand:#6ea8fe; --danger:#ff6b6b; --ok:#22c55e; }
     * { box-sizing:border-box; }

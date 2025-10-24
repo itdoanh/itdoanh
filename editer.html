@@ -7,18 +7,18 @@
   <style>
     :root { --bg:#0f1220; --panel:#171a2b; --text:#e8eaf2; --muted:#a9aec4; --brand:#6ea8fe; --danger:#ff6b6b; }
     * { box-sizing:border-box; }
-    body { margin:0; font-family:ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial; background:var(--bg); color:var(--text);}  
+    body { margin:0; font-family:ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial; background:var(--bg); color:var(--text);}  
     header { display:flex; gap:.75rem; align-items:center; padding:12px 16px; background:linear-gradient(90deg, #10142a, #131737); position:sticky; top:0; z-index:3; border-bottom:1px solid #202545; }
-    header h1 { font-size:16px; margin:0; font-weight:700; letter-spacing:.2px; }
+    header h1 { font-size:16px; margin:0; font-weight:700; }
     header input[type="text"]{ background:#0e1226; border:1px solid #243; color:var(--text); padding:8px 10px; border-radius:10px; width:220px; }
-    .btn { border:1px solid #2a315f; background:#1a1f3a; color:var(--text); padding:8px 12px; border-radius:10px; cursor:pointer; transition:.15s; }
+    .btn { border:1px solid #2a315f; background:#1a1f3a; color:var(--text); padding:8px 12px; border-radius:10px; cursor:pointer; }
     .btn:hover{ background:#242a51; }
     .btn.primary{ border-color:#2f58ff44; background:#2031a8; }
     .btn.primary:hover{ background:#2a3bca; }
     .btn.danger{ border-color:#ff6b6b44; background:#5b1f2a; }
     .btn.danger:hover{ background:#7a2531; }
 
-    .wrap{ display:grid; grid-template-columns: 280px 1fr; height: calc(100vh - 60px); }
+    .wrap{ display:grid; grid-template-columns: 280px 1fr; height: calc(100vh - 56px); }
     aside{ border-right:1px solid #202545; background:var(--panel); overflow:auto; }
     .toolbar{ display:flex; gap:.5rem; padding:10px 12px; border-bottom:1px solid #202545; position:sticky; top:0; background:var(--panel); z-index:2; }
     .filelist{ padding:8px; display:flex; flex-direction:column; gap:6px; }
@@ -29,7 +29,7 @@
 
     main{ display:grid; grid-template-rows: auto 1fr auto; min-width:0; }
     .meta{ display:flex; align-items:center; gap:8px; padding:10px 12px; border-bottom:1px solid #202545; background:var(--panel); }
-    .meta .path{ font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; background:#0c1022; border:1px solid #1f2547; padding:6px 10px; border-radius:8px; }
+    .path{ font-family:ui-monospace, Menlo, Consolas, monospace; background:#0c1022; border:1px solid #1f2547; padding:6px 10px; border-radius:8px; }
     #editor{ width:100%; height: calc(100vh - 200px); }
     #editor_fallback{ width:100%; height: calc(100vh - 200px); background:#0b1120; color:#e6edf3; border:none; padding:12px; font-family:ui-monospace,Menlo,Consolas,monospace; font-size:14px; line-height:1.5; outline:none; resize:none }
     footer{ display:flex; justify-content:space-between; align-items:center; gap:8px; padding:10px 12px; border-top:1px solid #202545; background:#0d1022; }
@@ -69,7 +69,7 @@
         <span class="chip" id="status">Sẵn sàng.</span>
         <div style="display:flex; gap:.5rem; align-items:center;">
           <button class="btn" id="toggleLog">Chi tiết lỗi</button>
-          <span class="chip">Ace sẽ tự nạp • Lỗi sẽ hiện ở đây & console</span>
+          <span class="chip">Ace sẽ tự nạp • Nếu lỗi sẽ chuyển qua textarea</span>
         </div>
       </footer>
       <div id="logPane" class="logpane"></div>
@@ -79,7 +79,6 @@
 <script>
 (function(){
   const $ = (s,root=document)=>root.querySelector(s);
-  const $$ = (s,root=document)=>Array.from(root.querySelectorAll(s));
   const fileListEl = $('#fileList');
   const editorWrap = $('#editor');
   const projectNameEl = $('#projectName');
@@ -88,12 +87,12 @@
   const statusEl = $('#status');
   const logPane = $('#logPane');
 
-  const logs = [];
-  function log(msg, type='info'){
+  const logs=[];
+  function log(msg,type='info'){
     const t = `[${new Date().toLocaleTimeString()}][${type}] ${msg}`;
     logs.push(t);
-    if(logPane) logPane.textContent = logs.slice(-200).join('\n');
-    if(statusEl && type!=='debug') statusEl.textContent = msg;
+    logPane.textContent = logs.slice(-200).join('\n');
+    if(type!=='debug') statusEl.textContent = msg;
     try{ (console[type]||console.log)(msg); }catch{ console.log(msg); }
   }
   $('#toggleLog').addEventListener('click', ()=>{
@@ -103,14 +102,13 @@
   window.addEventListener('unhandledrejection', e=> log(`Promise rejection: ${e.reason}`, 'error'));
 
   function loadScript(src){
-    return new Promise((resolve, reject)=>{
+    return new Promise((resolve,reject)=>{
       const s=document.createElement('script'); s.src=src; s.async=true;
-      s.onload=()=>resolve(src); s.onerror=()=>reject(new Error('Fail '+src));
+      s.onload=()=>resolve(); s.onerror=()=>reject(new Error('Fail '+src));
       document.head.appendChild(s);
     });
   }
 
-  // Fallback: nếu Ace lỗi, dùng textarea
   let editor=null, modelist=null, fallback=false;
   function ensureEditor(){
     if(!fallback && window.ace && !editor){
@@ -122,10 +120,12 @@
     if(!window.ace && !fallback){
       fallback = true;
       editorWrap.innerHTML = '<textarea id="editor_fallback" placeholder="// Nội dung file..."></textarea>';
+      const ta = document.getElementById('editor_fallback');
+      ta.style.cssText='width:100%;height:calc(100vh - 200px);background:#0b1120;color:#e6edf3;border:none;padding:12px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:14px;line-height:1.5;outline:none;resize:none';
     }
   }
-  function setEditorContent(v){ if(fallback){ $('#editor_fallback').value = v||''; } else { editor.setValue(v||'', -1); } }
-  function getEditorContent(){ return fallback ? ($('#editor_fallback').value||'') : editor.getValue(); }
+  function setEditorContent(v){ if(fallback){ document.getElementById('editor_fallback').value = v||''; } else { editor.setValue(v||'', -1); } }
+  function getEditorContent(){ return fallback ? (document.getElementById('editor_fallback').value||'') : editor.getValue(); }
   function setEditorModeByLang(lang){ if(fallback) return; try{ editor.session.setMode(`ace/mode/${lang}`); }catch{ editor.session.setMode('ace/mode/text'); } }
 
   async function ensureAce(){
@@ -212,7 +212,7 @@
   }
   function deleteFile(){
     if(state.current<0) return; const cur = state.files[state.current];
-    if(!confirm('Xoá file "'+cur.name+'"?')) return;
+    if(!confirm('Xoá file \''+cur.name+'\'?')) return;
     state.files.splice(state.current,1);
     state.current = Math.min(state.current, state.files.length-1);
     if(state.current>=0) selectFile(state.current);
@@ -236,26 +236,26 @@
         state.files = data.files.map(f=>({ name:f.name, language:(f.language||guessLang(f.name)), content:(f.content||'') }));
         state.projectName = data.projectName || 'imported-project'; projectNameEl.value = state.projectName;
         selectFile(0); renderList(); log('Đã nạp gói JSON.');
-      }catch(e){ alert('Không đọc được JSON: '+ e.message); }
+      }catch(e){ alert('Không đọc được JSON: '+e.message); }
     };
     reader.readAsText(file);
   }
 
-  // Sự kiện
-  $('#btnNew').addEventListener('click', addFile);
-  $('#btnRename').addEventListener('click', renameFile);
-  $('#btnDelete').addEventListener('click', deleteFile);
-  $('#btnExport').addEventListener('click', exportJson);
-  $('#importInput').addEventListener('change', (e)=>{ if(e.target.files[0]) importJsonFile(e.target.files[0]); e.target.value=''; });
-  $('#search').addEventListener('input', e=> renderList(e.target.value));
+  // events
+  document.getElementById('btnNew').addEventListener('click', addFile);
+  document.getElementById('btnRename').addEventListener('click', renameFile);
+  document.getElementById('btnDelete').addEventListener('click', deleteFile);
+  document.getElementById('btnExport').addEventListener('click', exportJson);
+  document.getElementById('importInput').addEventListener('change', (e)=>{ if(e.target.files[0]) importJsonFile(e.target.files[0]); e.target.value=''; });
+  document.getElementById('search').addEventListener('input', e=> renderList(e.target.value));
   projectNameEl.addEventListener('input', e=> state.projectName = e.target.value);
 
   (async ()=>{
     const ok = await ensureAce();
     if(ok){ modelist = ace.require('ace/ext/modelist'); ensureEditor(); editor.session.on('change', ()=>{ if(state.current>=0){ statusEl.textContent='Đã thay đổi (chưa xuất)'; } }); }
-    else { ensureEditor(); $('#editor_fallback').addEventListener('input', ()=>{ if(state.current>=0){ statusEl.textContent='Đã thay đổi (chưa xuất)'; } }); }
+    else { ensureEditor(); const ta=document.getElementById('editor_fallback'); ta.addEventListener('input', ()=>{ if(state.current>=0){ statusEl.textContent='Đã thay đổi (chưa xuất)'; } }); }
 
-    // seed sample (dùng \n, không xuống dòng thật)
+    // seed sample (dùng \n)
     state.files = [
       {name:'index.html', language:'html', content:'<!doctype html>\n<html>\n  <head><meta charset="utf-8"><title>Hello</title></head>\n  <body>Xin chào!</body>\n</html>'},
       {name:'main.js', language:'javascript', content:'console.log("Hello world")'},

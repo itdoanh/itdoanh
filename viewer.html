@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Code Viewer — JSON bundle</title>
+  <!-- highlight.js (CDN) + theme -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css" integrity="sha512-uSJHf4d2Bf0n1ooYr1GmYzvndb3pejVf3ZbLio1w6GJq2R24fC0iFTaoo1qN09hZpof8GQ3oa5J9u2A8oL/N2g==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js" integrity="sha512-WT1XQrtW9+0aPL8J4529d0HcB6m1UNn1J18a2cZ20lM+Y0vYHqA9j5X3tZbMwj3h4p+Ibk3b2yp7J1oX3i3qRQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <!-- phổ biến ngôn ngữ -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/javascript.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/xml.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/css.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/json.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/python.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/csharp.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/php.min.js"></script>
+  <style>
+    :root { --bg:#0d1117; --panel:#0f1522; --text:#e6edf3; --muted:#9aa7b5; --line:#1f2632; --brand:#3b82f6; --hover:#192133; }
+    * { box-sizing:border-box; }
+    body {margin:0; font-family:ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial; background:var(--bg); color:var(--text);}
+    header{ display:flex; align-items:center; gap:.5rem; padding:10px 14px; border-bottom:1px solid var(--line); background:#0b1120; position:sticky; top:0; z-index:4; }
+    header h1{ font-size:16px; margin:0; font-weight:700; }
+    .btn { border:1px solid #2a3444; background:#111827; color:var(--text); padding:8px 12px; border-radius:10px; cursor:pointer; }
+    .btn:hover{ background:var(--hover); }
+    input[type="file"]{ display:none; }
+    .urlbox{ background:#0f172a; border:1px solid #2a3444; color:var(--text); padding:8px 10px; border-radius:10px; width:280px; }
+
+    .layout{ display:grid; grid-template-columns: 300px 1fr; height: calc(100vh - 56px); }
+    aside{ border-right:1px solid var(--line); background:var(--panel); overflow:auto; }
+    .list-head{ display:flex; gap:8px; align-items:center; padding:10px; border-bottom:1px solid var(--line); position:sticky; top:0; background:var(--panel); z-index:2; }
+    .search{ width:100%; border:1px solid #2a3444; background:#0b1222; color:var(--text); padding:8px 10px; border-radius:8px; }
+    .files{ padding:10px; display:flex; flex-direction:column; gap:6px; }
+    .item{ display:flex; align-items:center; justify-content:space-between; gap:8px; padding:8px 10px; border:1px solid #212a3b; border-radius:10px; background:#0e1426; cursor:pointer; }
+    .item.active{ outline:2px solid #3555ff; background:#131a36; }
+    .name{ overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+    .tag{ font-size:12px; color:var(--muted); }
+
+    main{ min-width:0; display:grid; grid-template-rows:auto 1fr; }
+    .titlebar{ display:flex; align-items:center; gap:8px; padding:10px 14px; border-bottom:1px solid var(--line); background:#0f1526; }
+    .filename{ font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono"; background:#0b1120; border:1px solid #27314a; padding:6px 10px; border-radius:8px; }
+    .spacer{ flex:1; }
+    pre{ margin:0; height:100%; overflow:auto; }
+    pre code{ display:block; padding:16px; font-size:14px; line-height:1.5; }
+    .toast{ position:fixed; bottom:14px; right:14px; background:#0b1224; border:1px solid #334; color:var(--text); padding:10px 12px; border-radius:10px; opacity:0; transform: translateY(8px); transition:.2s; }
+    .toast.show{ opacity:1; transform: translateY(0); }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>👀 Code Viewer</h1>
+    <label class="btn" for="bundleInput">📂 Nạp gói .json</label>
+    <input id="bundleInput" type="file" accept="application/json" />
+    <input id="urlInput" class="urlbox" placeholder="(Tuỳ chọn) Dán URL gói JSON..." />
+    <button id="loadUrlBtn" class="btn">Tải từ URL</button>
+    <span style="flex:1"></span>
+    <span id="meta" class="tag"></span>
+  </header>
+
+  <div class="layout">
+    <aside>
+      <div class="list-head">
+        <input id="search" class="search" placeholder="Tìm file..." />
+      </div>
+      <div id="files" class="files"></div>
+    </aside>
+    <main>
+      <div class="titlebar">
+        <span class="tag">File:</span>
+        <span id="filename" class="filename">(chưa chọn)</span>
+        <button id="copyBtn" class="btn">📋 Copy code</button>
+        <span class="spacer"></span>
+        <span id="lang" class="tag"></span>
+      </div>
+      <pre><code id="code" class="hljs"></code></pre>
+    </main>
+  </div>
+
+  <div id="toast" class="toast">Đã copy vào clipboard!</div>
+
+<script>
+(function(){
+  const $ = (s,root=document)=> root.querySelector(s);
+  const $$ = (s,root=document)=> Array.from(root.querySelectorAll(s));
+  const state = { projectName:'', files:[], current:-1 };
+
+  function showToast(msg){ const t=$('#toast'); t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),1200); }
+
+  function setCode(content, languageHint){
+    const codeEl = $('#code');
+    // nếu có lang cụ thể, gán class; nếu không, dùng highlightAuto
+    if(languageHint){
+      codeEl.className = 'hljs language-' + languageHint;
+      codeEl.textContent = content;
+      hljs.highlightElement(codeEl);
+    } else {
+      const res = hljs.highlightAuto(content);
+      codeEl.className = 'hljs language-' + (res.language || 'plaintext');
+      codeEl.innerHTML = res.value;
+    }
+  }
+
+  function renderList(filter=''){
+    const box = $('#files');
+    box.innerHTML = '';
+    const needle = filter.toLowerCase();
+    state.files.forEach((f,i)=>{
+      if(needle && !f.name.toLowerCase().includes(needle)) return;
+      const row = document.createElement('div'); row.className = 'item' + (i===state.current?' active':'');
+      const name = document.createElement('div'); name.className='name'; name.textContent=f.name;
+      const tag = document.createElement('div'); tag.className='tag'; tag.textContent=f.language || '';
+      row.appendChild(name); row.appendChild(tag);
+      row.addEventListener('click', ()=> select(i));
+      box.appendChild(row);
+    });
+  }
+
+  function select(i){
+    state.current = i;
+    const f = state.files[i];
+    $('#filename').textContent = f.name;
+    $('#lang').textContent = f.language ? `lang: ${f.language}` : '';
+    setCode(f.content || '', f.language);
+    renderList($('#search').value);
+  }
+
+  function loadBundle(obj){
+    if(!obj || !Array.isArray(obj.files)) throw new Error('Sai định dạng JSON: thiếu files[]');
+    state.projectName = obj.projectName || '(No name)';
+    state.files = obj.files.map(f=>({ name: f.name, language: (f.language || guessLangByExt(f.name)), content: f.content }));
+    $('#meta').textContent = `${state.projectName} — ${state.files.length} file`;
+    state.current = -1;
+    renderList();
+    if(state.files.length) select(0);
+  }));
+    $('#meta').textContent = `${state.projectName} — ${state.files.length} file`;
+    state.current = -1;
+    renderList();
+    if(state.files.length) select(0);
+  }
+
+  function handleFile(file){
+    const reader = new FileReader();
+    reader.onload = ()=>{ try{ loadBundle(JSON.parse(reader.result)); } catch(e){ alert('Không đọc được JSON: '+ e.message); } };
+    reader.readAsText(file);
+  }
+
+  $('#bundleInput').addEventListener('change', (e)=>{ if(e.target.files[0]) handleFile(e.target.files[0]); e.target.value=''; });
+  $('#search').addEventListener('input', e=> renderList(e.target.value));
+  $('#copyBtn').addEventListener('click', async ()=>{
+    const f = state.files[state.current]; if(!f) return;
+    try{ await navigator.clipboard.writeText(f.content||''); showToast('Đã copy vào clipboard!'); }catch{ alert('Trình duyệt không cho phép copy.'); }
+  });
+
+  // Tải từ URL (lưu ý CORS)
+  $('#loadUrlBtn').addEventListener('click', async ()=>{
+    const url = $('#urlInput').value.trim(); if(!url) return;
+    try{
+      const res = await fetch(url);
+      const obj = await res.json();
+      loadBundle(obj);
+    }catch(e){ alert('Không tải được JSON từ URL. Có thể bị chặn bởi CORS.'); }
+  });
+
+  // seed example nếu chưa nạp gì
+  const sample = {
+    projectName:'sample',
+    files:[
+      {name:'hello.js', language:'javascript', content:'console.log("Hello from bundle")'},
+      {name:'style.css', language:'css', content:'body{font-family:sans-serif;} header{position:sticky;top:0;}'},
+      {name:'index.html', language:'xml', content:'<!doctype html>
+<html>
+  <body>Sample</body>
+</html>'},
+      {name:'Program.cs', /* không ghi language để test nhận diện đuôi .cs */ content:'using System;
+class Program { static void Main(){ Console.WriteLine("Hello C# viewer"); } }'}
+    ]
+  };
+  loadBundle(sample);
+})();
+</script>
+</body>
+</html>

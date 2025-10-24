@@ -5,10 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Code Project Editor — JSON bundle (no DB)</title>
   <!-- Ace Editor (CDN) -->
-  <script src="https://cdn.jsdelivr.net/npm/ace-builds@1.43.3/src-min-noconflict/ace.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/ace-builds@1.43.3/src-min-noconflict/ext-language_tools.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/ace-builds@1.43.3/src-min-noconflict/ext-modelist.js"></script>
-  <script>ace.config.set('basePath','https://cdn.jsdelivr.net/npm/ace-builds@1.43.3/src-min-noconflict');</script>
+  <script>// Ace sẽ được nạp động trong script cuối trang</script>
   <style>
     :root { --bg:#0f1220; --panel:#171a2b; --text:#e8eaf2; --muted:#a9aec4; --brand:#6ea8fe; --danger:#ff6b6b; --ok:#22c55e; }
     * { box-sizing:border-box; }
@@ -38,6 +35,9 @@
     .meta .path{ font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; background:#0c1022; border:1px solid #1f2547; padding:6px 10px; border-radius:8px; }
     #editor{ width:100%; height: calc(100vh - 140px); }
     footer{ display:flex; justify-content:space-between; align-items:center; gap:8px; padding:10px 12px; border-top:1px solid #202545; background:#0d1022; }
+    .chip{ font-size:12px; color:var(--muted); }
+    input[type="file"]{ display:none; }
+    .logpane{ background:#0b1120; border-top:1px solid #202545; height:120px; overflow:auto; font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,"Liberation Mono"; padding:8px 10px; display:none; white-space:pre-wrap; }
     .chip{ font-size:12px; color:var(--muted); }
     input[type="file"]{ display:none; }
   </style>
@@ -71,13 +71,17 @@
       <div id="editor"></div>
       <footer>
         <span class="chip" id="status">Sẵn sàng.</span>
-        <span class="chip">Tip: Tự động xác định ngôn ngữ theo đuôi file (Ace Modelist).</span>
+        <div style="display:flex; gap:.5rem; align-items:center;">
+          <button class="btn ghost" id="toggleLog">Chi tiết lỗi</button>
+          <span class="chip">Tip: Tự động xác định ngôn ngữ theo đuôi file (Ace Modelist).</span>
+        </div>
       </footer>
+      <div id="logPane" class="logpane"></div>
     </main>
   </div>
 
 <script>
-(function(){
+(async function(){
   const el = (sel,root=document) => root.querySelector(sel);
   const els = (sel,root=document) => Array.from(root.querySelectorAll(sel));
   const fileListEl = el('#fileList');
@@ -86,7 +90,36 @@
   const currentPathEl = el('#currentPath');
   const langChipEl = el('#langChip');
   const statusEl = el('#status');
+  const logPane = el('#logPane');
+  const logs = [];
+  function log(msg, type='info'){ const t = `[${new Date().toLocaleTimeString()}][${type}] ${msg}`; logs.push(t); if(logPane){ logPane.textContent = logs.slice(-200).join('
+'); } if(statusEl && type!=='debug'){ statusEl.textContent = msg; } }
+  function toggleLog(){ logPane.style.display = (logPane.style.display==='block'?'none':'block'); }
+  el('#toggleLog').addEventListener('click', toggleLog);
+  window.addEventListener('error', (e)=> log(`${e.message} @ ${e.filename}:${e.lineno}`, 'error'));
+  window.addEventListener('unhandledrejection', (e)=> log(`Promise rejection: ${e.reason}`, 'error'));
 
+  function loadScript(src){
+    return new Promise((resolve, reject)=>{
+      const s=document.createElement('script'); s.src=src; s.onload=()=>resolve(src); s.onerror=()=>reject(new Error('Fail '+src)); document.head.appendChild(s);
+    });
+  }
+  async function ensureAce(){
+    if(window.ace){ return; }
+    try{
+      await loadScript('https://cdn.jsdelivr.net/npm/ace-builds@1.43.3/src-min-noconflict/ace.js');
+      log('Ace loaded from jsDelivr');
+    }catch(err){
+      log('Primary CDN failed, trying unpkg...', 'error');
+      await loadScript('https://unpkg.com/ace-builds@1.43.3/src-min-noconflict/ace.js');
+      log('Ace loaded from unpkg');
+    }
+    if(window.ace){ ace.config.set('basePath','https://cdn.jsdelivr.net/npm/ace-builds@1.43.3/src-min-noconflict'); }
+    try{ await loadScript('https://cdn.jsdelivr.net/npm/ace-builds@1.43.3/src-min-noconflict/ext-language_tools.js'); }catch{ await loadScript('https://unpkg.com/ace-builds@1.43.3/src-min-noconflict/ext-language_tools.js'); }
+    try{ await loadScript('https://cdn.jsdelivr.net/npm/ace-builds@1.43.3/src-min-noconflict/ext-modelist.js'); }catch{ await loadScript('https://unpkg.com/ace-builds@1.43.3/src-min-noconflict/ext-modelist.js'); }
+  }
+
+  await ensureAce();
   let modelist = ace.require("ace/ext/modelist");
   let editor = ace.edit(editorEl);
   editor.setTheme("ace/theme/one_dark");

@@ -97,11 +97,23 @@
     enableLiveAutocompletion:true,
   });
 
-  const state = {
-    projectName: 'my-project',
-    files: [], // {name, language, content}
-    current: -1,
-  };
+  $1
+
+  function guessLangByExt(name){
+    const m = /(\.[^.]+)$/.exec(name||'');
+    const ext = (m?m[1].slice(1):'').toLowerCase();
+    switch(ext){
+      case 'js': case 'mjs': case 'cjs': return 'javascript';
+      case 'ts': case 'tsx': return 'javascript';
+      case 'html': case 'htm': case 'xml': return 'xml';
+      case 'css': return 'css';
+      case 'json': return 'json';
+      case 'py': return 'python';
+      case 'cs': case 'csx': case 'cake': return 'csharp';
+      case 'php': case 'phtml': case 'php5': return 'php';
+      default: return '';
+    }
+  }
 
   function inferLangFromName(name){
     const mode = modelist.getModeForPath(name);
@@ -222,9 +234,15 @@
 
   // seed sample
   state.files = [
-    {name:'index.html', language:'html', content:'<!doctype html>\n<html>\n  <head><meta charset="utf-8"><title>Hello</title></head>\n  <body>Xin chào!</body>\n</html>'},
+    {name:'index.html', language:'html', content:'<!doctype html>
+<html>
+  <head><meta charset="utf-8"><title>Hello</title></head>
+  <body>Xin chào!</body>
+</html>'},
     {name:'main.js', language:'javascript', content:'console.log("Hello world")'},
-    {name:'styles.css', language:'css', content:'body{font-family:sans-serif;}'}
+    {name:'styles.css', language:'css', content:'body{font-family:sans-serif;}'},
+    {name:'Program.cs', language:'csharp', content:'using System;
+class P { static void Main(){ Console.WriteLine("Xin chào C#"); } }'}
   ];
   projectNameEl.value = state.projectName;
   selectFile(0);

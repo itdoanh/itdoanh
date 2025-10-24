@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Code Project Editor — JSON bundle (no DB)</title>
+  <!-- Ace Editor (CDN) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.9/ace.js" integrity="sha512-3f78JYQ8X+4sS41cVEWOX5aurm4+0z0bD4YhQxFgy1zj+Eo7aK97kzE4Ahd5jO2zR3JmYcQO7q5GmKqf2Rk9ZQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.9/ext-language_tools.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.9/ext-modelist.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <style>
+    :root { --bg:#0f1220; --panel:#171a2b; --text:#e8eaf2; --muted:#a9aec4; --brand:#6ea8fe; --danger:#ff6b6b; --ok:#22c55e; }
+    * { box-sizing:border-box; }
+    body { margin:0; font-family:ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial; background:var(--bg); color:var(--text);}  
+    header { display:flex; gap:.75rem; align-items:center; padding:12px 16px; background:linear-gradient(90deg, #10142a, #131737); position:sticky; top:0; z-index:3; border-bottom:1px solid #202545; }
+    header h1 { font-size:16px; margin:0; font-weight:700; letter-spacing:.2px; }
+    header input[type="text"]{ background:#0e1226; border:1px solid #243; color:var(--text); padding:8px 10px; border-radius:10px; width:220px; }
+    .btn { border:1px solid #2a315f; background:#1a1f3a; color:var(--text); padding:8px 12px; border-radius:10px; cursor:pointer; transition:.15s; }
+    .btn:hover{ background:#242a51; }
+    .btn.primary{ border-color:#2f58ff44; background:#2031a8; }
+    .btn.primary:hover{ background:#2a3bca; }
+    .btn.danger{ border-color:#ff6b6b44; background:#5b1f2a; }
+    .btn.danger:hover{ background:#7a2531; }
+    .btn.ghost{ background:transparent; border:1px dashed #334; }
+
+    .wrap{ display:grid; grid-template-columns: 280px 1fr; height: calc(100vh - 60px); }
+    aside{ border-right:1px solid #202545; background:var(--panel); overflow:auto; }
+    .toolbar{ display:flex; gap:.5rem; padding:10px 12px; border-bottom:1px solid #202545; position:sticky; top:0; background:var(--panel); z-index:2; }
+    .filelist{ padding:8px; display:flex; flex-direction:column; gap:6px; }
+    .file{ display:flex; align-items:center; justify-content:space-between; gap:8px; padding:8px 10px; border:1px solid #22284c; border-radius:10px; background:#12162b; cursor:pointer; }
+    .file.active{ outline:2px solid #3b51f6; background:#141a3a; }
+    .file .name{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .tags{ color:var(--muted); font-size:12px; }
+
+    main{ display:grid; grid-template-rows: auto 1fr; min-width:0; }
+    .meta{ display:flex; align-items:center; gap:8px; padding:10px 12px; border-bottom:1px solid #202545; background:var(--panel); }
+    .meta .path{ font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; background:#0c1022; border:1px solid #1f2547; padding:6px 10px; border-radius:8px; }
+    #editor{ width:100%; height: calc(100vh - 140px); }
+    footer{ display:flex; justify-content:space-between; align-items:center; gap:8px; padding:10px 12px; border-top:1px solid #202545; background:#0d1022; }
+    .chip{ font-size:12px; color:var(--muted); }
+    input[type="file"]{ display:none; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>🛠️ Code Project Editor</h1>
+    <input id="projectName" type="text" placeholder="Tên project (vd: my-app)" />
+    <button class="btn ghost" id="btnNew">+ File</button>
+    <button class="btn" id="btnRename">Đổi tên</button>
+    <button class="btn danger" id="btnDelete">Xoá file</button>
+    <span style="flex:1"></span>
+    <label class="btn" for="importInput">📥 Nạp gói (.json)</label>
+    <input id="importInput" type="file" accept="application/json" />
+    <button class="btn primary" id="btnExport">📦 Xuất gói .json</button>
+  </header>
+
+  <div class="wrap">
+    <aside>
+      <div class="toolbar">
+        <input id="search" class="btn" style="width:100%" placeholder="Tìm file..." />
+      </div>
+      <div id="fileList" class="filelist"></div>
+    </aside>
+    <main>
+      <div class="meta">
+        <span class="chip">Đang sửa:</span>
+        <span id="currentPath" class="path">(chưa có file)</span>
+        <span class="chip" id="langChip"></span>
+      </div>
+      <div id="editor"></div>
+      <footer>
+        <span class="chip" id="status">Sẵn sàng.</span>
+        <span class="chip">Tip: Tự động xác định ngôn ngữ theo đuôi file (Ace Modelist).</span>
+      </footer>
+    </main>
+  </div>
+
+<script>
+(function(){
+  const el = (sel,root=document) => root.querySelector(sel);
+  const els = (sel,root=document) => Array.from(root.querySelectorAll(sel));
+  const fileListEl = el('#fileList');
+  const editorEl = el('#editor');
+  const projectNameEl = el('#projectName');
+  const currentPathEl = el('#currentPath');
+  const langChipEl = el('#langChip');
+  const statusEl = el('#status');
+
+  let modelist = ace.require("ace/ext/modelist");
+  let editor = ace.edit(editorEl);
+  editor.setTheme("ace/theme/one_dark");
+  editor.setOptions({
+    fontSize: "14px",
+    showPrintMargin:false,
+    enableBasicAutocompletion:true,
+    enableSnippets:true,
+    enableLiveAutocompletion:true,
+  });
+
+  const state = {
+    projectName: 'my-project',
+    files: [], // {name, language, content}
+    current: -1,
+  };
+
+  function inferLangFromName(name){
+    const mode = modelist.getModeForPath(name);
+    return (mode && mode.name) || 'text';
+  }
+  function setEditorModeByLang(lang){
+    try { editor.session.setMode(`ace/mode/${lang}`); }
+    catch(e){ editor.session.setMode('ace/mode/text'); }
+  }
+
+  function selectFile(idx){
+    if(idx < 0 || idx >= state.files.length) return;
+    // autosave current
+    if(state.current >= 0){
+      state.files[state.current].content = editor.getValue();
+    }
+    state.current = idx;
+    const f = state.files[idx];
+    currentPathEl.textContent = f.name;
+    langChipEl.textContent = `lang: ${f.language}`;
+    setEditorModeByLang(f.language);
+    editor.setValue(f.content || '', -1);
+    renderList();
+  }
+
+  function renderList(filter=''){
+    fileListEl.innerHTML = '';
+    const normalized = filter.toLowerCase();
+    state.files.forEach((f, i) => {
+      if(normalized && !f.name.toLowerCase().includes(normalized)) return;
+      const row = document.createElement('div');
+      row.className = 'file' + (i===state.current?' active':'');
+      const name = document.createElement('div'); name.className='name'; name.textContent = f.name;
+      const tag = document.createElement('div'); tag.className='tags'; tag.textContent = f.language;
+      row.appendChild(name); row.appendChild(tag);
+      row.addEventListener('click', ()=> selectFile(i));
+      fileListEl.appendChild(row);
+    });
+  }
+
+  function addFile(){
+    let name = prompt('Tên file mới (vd: index.html, main.js, styles.css):','index.html');
+    if(!name) return;
+    if(state.files.some(f=>f.name===name)) return alert('Trùng tên file.');
+    const language = inferLangFromName(name).replace('objectivec','objective_c');
+    state.files.push({name, language, content:''});
+    if(state.current === -1) state.current = 0;
+    selectFile(state.files.length-1);
+    renderList();
+  }
+
+  function renameFile(){
+    if(state.current<0) return;
+    const cur = state.files[state.current];
+    const next = prompt('Đổi tên file thành:', cur.name);
+    if(!next || next===cur.name) return;
+    if(state.files.some(f=>f.name===next)) return alert('Tên đã tồn tại.');
+    cur.name = next;
+    cur.language = inferLangFromName(next);
+    selectFile(state.current);
+    renderList();
+  }
+
+  function deleteFile(){
+    if(state.current<0) return;
+    const cur = state.files[state.current];
+    if(!confirm(`Xoá file "${cur.name}"?`)) return;
+    state.files.splice(state.current,1);
+    state.current = Math.min(state.current, state.files.length-1);
+    if(state.current>=0) selectFile(state.current); else { editor.setValue('', -1); currentPathEl.textContent='(chưa có file)'; langChipEl.textContent=''; }
+    renderList();
+  }
+
+  function exportJson(){
+    if(state.current>=0){ state.files[state.current].content = editor.getValue(); }
+    const project = {
+      projectName: projectNameEl.value.trim() || state.projectName,
+      generatedAt: new Date().toISOString(),
+      files: state.files,
+    };
+    const blob = new Blob([JSON.stringify(project, null, 2)], {type:'application/json'});
+    const a = document.createElement('a');
+    const name = (project.projectName || 'project').replace(/[^a-z0-9-_]/gi,'-');
+    a.download = `${name}.codeproject.json`;
+    a.href = URL.createObjectURL(blob);
+    a.click();
+    URL.revokeObjectURL(a.href);
+    statusEl.textContent = 'Đã xuất gói .json';
+  }
+
+  function importJsonFile(file){
+    const reader = new FileReader();
+    reader.onload = () => {
+      try{
+        const data = JSON.parse(reader.result);
+        if(!Array.isArray(data.files)) throw new Error('Sai định dạng: thiếu files[]');
+        state.files = data.files.map(f=>({ name: f.name, language: f.language || inferLangFromName(f.name), content: f.content||'' }));
+        state.projectName = data.projectName || 'imported-project';
+        projectNameEl.value = state.projectName;
+        state.current = 0;
+        selectFile(0);
+        renderList();
+        statusEl.textContent = 'Đã nạp gói JSON.';
+      }catch(e){ alert('Không đọc được JSON: '+ e.message); }
+    };
+    reader.readAsText(file);
+  }
+
+  // events
+  el('#btnNew').addEventListener('click', addFile);
+  el('#btnRename').addEventListener('click', renameFile);
+  el('#btnDelete').addEventListener('click', deleteFile);
+  el('#btnExport').addEventListener('click', exportJson);
+  el('#importInput').addEventListener('change', (e)=>{ if(e.target.files[0]) importJsonFile(e.target.files[0]); e.target.value=''; });
+  el('#search').addEventListener('input', e=> renderList(e.target.value));
+  projectNameEl.addEventListener('input', e=> state.projectName = e.target.value);
+  editor.session.on('change', ()=>{ if(state.current>=0){ statusEl.textContent = 'Đã thay đổi (chưa xuất)'; } });
+
+  // seed sample
+  state.files = [
+    {name:'index.html', language:'html', content:'<!doctype html>\n<html>\n  <head><meta charset="utf-8"><title>Hello</title></head>\n  <body>Xin chào!</body>\n</html>'},
+    {name:'main.js', language:'javascript', content:'console.log("Hello world")'},
+    {name:'styles.css', language:'css', content:'body{font-family:sans-serif;}'}
+  ];
+  projectNameEl.value = state.projectName;
+  selectFile(0);
+  renderList();
+})();
+</script>
+</body>
+</html>

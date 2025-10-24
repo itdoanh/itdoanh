@@ -4,10 +4,8 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Code Viewer — JSON bundle</title>
-  <!-- highlight.js (CDN) + theme -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/github-dark.min.css">
   <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/highlight.min.js"></script>
-  <!-- phổ biến ngôn ngữ -->
   <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/languages/javascript.min.js"></script>
   <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/languages/xml.min.js"></script>
   <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/languages/css.min.js"></script>
@@ -16,9 +14,9 @@
   <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/languages/csharp.min.js"></script>
   <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/languages/php.min.js"></script>
   <style>
-    :root { --bg:#0d1117; --panel:#0f1522; --text:#e6edf3; --muted:#9aa7b5; --line:#1f2632; --brand:#3b82f6; --hover:#192133; }
+    :root { --bg:#0d1117; --panel:#0f1522; --text:#e6edf3; --muted:#9aa7b5; --line:#1f2632; --hover:#192133; }
     * { box-sizing:border-box; }
-    body {margin:0; font-family:ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial; background:var(--bg); color:var(--text);}
+    body {margin:0; font-family:ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial; background:var(--bg); color:var(--text);}
     header{ display:flex; align-items:center; gap:.5rem; padding:10px 14px; border-bottom:1px solid var(--line); background:#0b1120; position:sticky; top:0; z-index:4; }
     header h1{ font-size:16px; margin:0; font-weight:700; }
     .btn { border:1px solid #2a3444; background:#111827; color:var(--text); padding:8px 12px; border-radius:10px; cursor:pointer; }
@@ -38,7 +36,7 @@
 
     main{ min-width:0; display:grid; grid-template-rows:auto 1fr; }
     .titlebar{ display:flex; align-items:center; gap:8px; padding:10px 14px; border-bottom:1px solid var(--line); background:#0f1526; }
-    .filename{ font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono"; background:#0b1120; border:1px solid #27314a; padding:6px 10px; border-radius:8px; }
+    .filename{ font-family:ui-monospace, Menlo, Consolas, monospace; background:#0b1120; border:1px solid #27314a; padding:6px 10px; border-radius:8px; }
     .spacer{ flex:1; }
     pre{ margin:0; height:100%; overflow:auto; }
     pre code{ display:block; padding:16px; font-size:14px; line-height:1.5; }
@@ -81,14 +79,28 @@
 <script>
 (function(){
   const $ = (s,root=document)=> root.querySelector(s);
-  const $$ = (s,root=document)=> Array.from(root.querySelectorAll(s));
   const state = { projectName:'', files:[], current:-1 };
+
+  function guessLangByExt(name){
+    const m = (name||'').toLowerCase().match(/\.([a-z0-9]+)$/);
+    const ext = m? m[1] : '';
+    switch(ext){
+      case 'js': case 'mjs': case 'cjs': return 'javascript';
+      case 'ts': case 'tsx': return 'javascript';
+      case 'html': case 'htm': case 'xml': return 'xml';
+      case 'css': return 'css';
+      case 'json': return 'json';
+      case 'py': return 'python';
+      case 'cs': case 'csx': case 'cake': return 'csharp';
+      case 'php': case 'phtml': case 'php5': return 'php';
+      default: return '';
+    }
+  }
 
   function showToast(msg){ const t=$('#toast'); t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),1200); }
 
   function setCode(content, languageHint){
     const codeEl = $('#code');
-    // nếu có lang cụ thể, gán class; nếu không, dùng highlightAuto
     if(languageHint){
       codeEl.className = 'hljs language-' + languageHint;
       codeEl.textContent = content;
@@ -101,7 +113,7 @@
   }
 
   function renderList(filter=''){
-    const box = $('#files');
+    const box = document.getElementById('files');
     box.innerHTML = '';
     const needle = filter.toLowerCase();
     state.files.forEach((f,i)=>{
@@ -118,22 +130,17 @@
   function select(i){
     state.current = i;
     const f = state.files[i];
-    $('#filename').textContent = f.name;
-    $('#lang').textContent = f.language ? `lang: ${f.language}` : '';
-    setCode(f.content || '', f.language);
-    renderList($('#search').value);
+    document.getElementById('filename').textContent = f.name;
+    document.getElementById('lang').textContent = f.language ? `lang: ${f.language}` : '';
+    setCode(f.content || '', f.language || guessLangByExt(f.name));
+    renderList(document.getElementById('search').value);
   }
 
   function loadBundle(obj){
     if(!obj || !Array.isArray(obj.files)) throw new Error('Sai định dạng JSON: thiếu files[]');
     state.projectName = obj.projectName || '(No name)';
     state.files = obj.files.map(f=>({ name: f.name, language: (f.language || guessLangByExt(f.name)), content: f.content }));
-    $('#meta').textContent = `${state.projectName} — ${state.files.length} file`;
-    state.current = -1;
-    renderList();
-    if(state.files.length) select(0);
-  }));
-    $('#meta').textContent = `${state.projectName} — ${state.files.length} file`;
+    document.getElementById('meta').textContent = `${state.projectName} — ${state.files.length} file`;
     state.current = -1;
     renderList();
     if(state.files.length) select(0);
@@ -145,37 +152,25 @@
     reader.readAsText(file);
   }
 
-  $('#bundleInput').addEventListener('change', (e)=>{ if(e.target.files[0]) handleFile(e.target.files[0]); e.target.value=''; });
-  $('#search').addEventListener('input', e=> renderList(e.target.value));
-  $('#copyBtn').addEventListener('click', async ()=>{
+  document.getElementById('bundleInput').addEventListener('change', (e)=>{ if(e.target.files[0]) handleFile(e.target.files[0]); e.target.value=''; });
+  document.getElementById('search').addEventListener('input', e=> renderList(e.target.value));
+  document.getElementById('copyBtn').addEventListener('click', async ()=>{
     const f = state.files[state.current]; if(!f) return;
     try{ await navigator.clipboard.writeText(f.content||''); showToast('Đã copy vào clipboard!'); }catch{ alert('Trình duyệt không cho phép copy.'); }
   });
-
-  // Tải từ URL (lưu ý CORS)
-  $('#loadUrlBtn').addEventListener('click', async ()=>{
-    const url = $('#urlInput').value.trim(); if(!url) return;
-    try{
-      const res = await fetch(url);
-      const obj = await res.json();
-      loadBundle(obj);
-    }catch(e){ alert('Không tải được JSON từ URL. Có thể bị chặn bởi CORS.'); }
+  document.getElementById('loadUrlBtn').addEventListener('click', async ()=>{
+    const url = document.getElementById('urlInput').value.trim(); if(!url) return;
+    try{ const res = await fetch(url); const obj = await res.json(); loadBundle(obj); }
+    catch(e){ alert('Không tải được JSON từ URL. Có thể bị chặn bởi CORS.'); }
   });
 
-  // seed example nếu chưa nạp gì
-  const sample = {
-    projectName:'sample',
-    files:[
-      {name:'hello.js', language:'javascript', content:'console.log("Hello from bundle")'},
-      {name:'style.css', language:'css', content:'body{font-family:sans-serif;} header{position:sticky;top:0;}'},
-      {name:'index.html', language:'xml', content:'<!doctype html>
-<html>
-  <body>Sample</body>
-</html>'},
-      {name:'Program.cs', /* không ghi language để test nhận diện đuôi .cs */ content:'using System;
-class Program { static void Main(){ Console.WriteLine("Hello C# viewer"); } }'}
-    ]
-  };
+  // seed example (dùng \n)
+  const sample = { projectName:'sample', files:[
+    {name:'hello.js', language:'javascript', content:'console.log("Hello from bundle")'},
+    {name:'style.css', language:'css', content:'body{font-family:sans-serif;} header{position:sticky;top:0;}'},
+    {name:'index.html', language:'xml', content:'<!doctype html>\n<html>\n  <body>Sample</body>\n</html>'},
+    {name:'Program.cs', content:'using System;\nclass Program { static void Main(){ Console.WriteLine("Hello C# viewer"); } }'}
+  ]};
   loadBundle(sample);
 })();
 </script>

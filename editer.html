@@ -4,10 +4,8 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Code Project Editor — JSON bundle (no DB)</title>
-  <!-- Ace Editor (CDN) -->
-  <script>// Ace sẽ được nạp động trong script cuối trang</script>
   <style>
-    :root { --bg:#0f1220; --panel:#171a2b; --text:#e8eaf2; --muted:#a9aec4; --brand:#6ea8fe; --danger:#ff6b6b; --ok:#22c55e; }
+    :root { --bg:#0f1220; --panel:#171a2b; --text:#e8eaf2; --muted:#a9aec4; --brand:#6ea8fe; --danger:#ff6b6b; }
     * { box-sizing:border-box; }
     body { margin:0; font-family:ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial; background:var(--bg); color:var(--text);}  
     header { display:flex; gap:.75rem; align-items:center; padding:12px 16px; background:linear-gradient(90deg, #10142a, #131737); position:sticky; top:0; z-index:3; border-bottom:1px solid #202545; }
@@ -19,7 +17,6 @@
     .btn.primary:hover{ background:#2a3bca; }
     .btn.danger{ border-color:#ff6b6b44; background:#5b1f2a; }
     .btn.danger:hover{ background:#7a2531; }
-    .btn.ghost{ background:transparent; border:1px dashed #334; }
 
     .wrap{ display:grid; grid-template-columns: 280px 1fr; height: calc(100vh - 60px); }
     aside{ border-right:1px solid #202545; background:var(--panel); overflow:auto; }
@@ -30,23 +27,22 @@
     .file .name{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     .tags{ color:var(--muted); font-size:12px; }
 
-    main{ display:grid; grid-template-rows: auto 1fr; min-width:0; }
+    main{ display:grid; grid-template-rows: auto 1fr auto; min-width:0; }
     .meta{ display:flex; align-items:center; gap:8px; padding:10px 12px; border-bottom:1px solid #202545; background:var(--panel); }
     .meta .path{ font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; background:#0c1022; border:1px solid #1f2547; padding:6px 10px; border-radius:8px; }
-    #editor{ width:100%; height: calc(100vh - 140px); }
+    #editor{ width:100%; height: calc(100vh - 200px); }
+    #editor_fallback{ width:100%; height: calc(100vh - 200px); background:#0b1120; color:#e6edf3; border:none; padding:12px; font-family:ui-monospace,Menlo,Consolas,monospace; font-size:14px; line-height:1.5; outline:none; resize:none }
     footer{ display:flex; justify-content:space-between; align-items:center; gap:8px; padding:10px 12px; border-top:1px solid #202545; background:#0d1022; }
     .chip{ font-size:12px; color:var(--muted); }
     input[type="file"]{ display:none; }
-    .logpane{ background:#0b1120; border-top:1px solid #202545; height:120px; overflow:auto; font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,"Liberation Mono"; padding:8px 10px; display:none; white-space:pre-wrap; }
-    .chip{ font-size:12px; color:var(--muted); }
-    input[type="file"]{ display:none; }
+    .logpane{ background:#0b1120; border-top:1px solid #202545; height:120px; overflow:auto; font-family:ui-monospace, Menlo, Consolas, monospace; padding:8px 10px; display:none; white-space:pre-wrap; }
   </style>
 </head>
 <body>
   <header>
     <h1>🛠️ Code Project Editor</h1>
     <input id="projectName" type="text" placeholder="Tên project (vd: my-app)" />
-    <button class="btn ghost" id="btnNew">+ File</button>
+    <button class="btn" id="btnNew">+ File</button>
     <button class="btn" id="btnRename">Đổi tên</button>
     <button class="btn danger" id="btnDelete">Xoá file</button>
     <span style="flex:1"></span>
@@ -72,8 +68,8 @@
       <footer>
         <span class="chip" id="status">Sẵn sàng.</span>
         <div style="display:flex; gap:.5rem; align-items:center;">
-          <button class="btn ghost" id="toggleLog">Chi tiết lỗi</button>
-          <span class="chip">Tip: Tự động xác định ngôn ngữ theo đuôi file (Ace Modelist).</span>
+          <button class="btn" id="toggleLog">Chi tiết lỗi</button>
+          <span class="chip">Ace sẽ tự nạp • Lỗi sẽ hiện ở đây & console</span>
         </div>
       </footer>
       <div id="logPane" class="logpane"></div>
@@ -81,61 +77,86 @@
   </div>
 
 <script>
-(async function(){
-  const el = (sel,root=document) => root.querySelector(sel);
-  const els = (sel,root=document) => Array.from(root.querySelectorAll(sel));
-  const fileListEl = el('#fileList');
-  const editorEl = el('#editor');
-  const projectNameEl = el('#projectName');
-  const currentPathEl = el('#currentPath');
-  const langChipEl = el('#langChip');
-  const statusEl = el('#status');
-  const logPane = el('#logPane');
+(function(){
+  const $ = (s,root=document)=>root.querySelector(s);
+  const $$ = (s,root=document)=>Array.from(root.querySelectorAll(s));
+  const fileListEl = $('#fileList');
+  const editorWrap = $('#editor');
+  const projectNameEl = $('#projectName');
+  const currentPathEl = $('#currentPath');
+  const langChipEl = $('#langChip');
+  const statusEl = $('#status');
+  const logPane = $('#logPane');
+
   const logs = [];
-  function log(msg, type='info'){ const t = `[${new Date().toLocaleTimeString()}][${type}] ${msg}`; logs.push(t); if(logPane){ logPane.textContent = logs.slice(-200).join('
-'); } if(statusEl && type!=='debug'){ statusEl.textContent = msg; } }
-  function toggleLog(){ logPane.style.display = (logPane.style.display==='block'?'none':'block'); }
-  el('#toggleLog').addEventListener('click', toggleLog);
-  window.addEventListener('error', (e)=> log(`${e.message} @ ${e.filename}:${e.lineno}`, 'error'));
-  window.addEventListener('unhandledrejection', (e)=> log(`Promise rejection: ${e.reason}`, 'error'));
+  function log(msg, type='info'){
+    const t = `[${new Date().toLocaleTimeString()}][${type}] ${msg}`;
+    logs.push(t);
+    if(logPane) logPane.textContent = logs.slice(-200).join('\n');
+    if(statusEl && type!=='debug') statusEl.textContent = msg;
+    try{ (console[type]||console.log)(msg); }catch{ console.log(msg); }
+  }
+  $('#toggleLog').addEventListener('click', ()=>{
+    logPane.style.display = (logPane.style.display==='block'?'none':'block');
+  });
+  window.addEventListener('error', e=> log(`${e.message} @ ${e.filename}:${e.lineno}`, 'error'));
+  window.addEventListener('unhandledrejection', e=> log(`Promise rejection: ${e.reason}`, 'error'));
 
   function loadScript(src){
     return new Promise((resolve, reject)=>{
-      const s=document.createElement('script'); s.src=src; s.onload=()=>resolve(src); s.onerror=()=>reject(new Error('Fail '+src)); document.head.appendChild(s);
+      const s=document.createElement('script'); s.src=src; s.async=true;
+      s.onload=()=>resolve(src); s.onerror=()=>reject(new Error('Fail '+src));
+      document.head.appendChild(s);
     });
   }
+
+  // Fallback: nếu Ace lỗi, dùng textarea
+  let editor=null, modelist=null, fallback=false;
+  function ensureEditor(){
+    if(!fallback && window.ace && !editor){
+      editor = ace.edit(editorWrap);
+      editor.setTheme('ace/theme/one_dark');
+      editor.setOptions({ fontSize:'14px', showPrintMargin:false, enableBasicAutocompletion:true, enableSnippets:true, enableLiveAutocompletion:true });
+      return;
+    }
+    if(!window.ace && !fallback){
+      fallback = true;
+      editorWrap.innerHTML = '<textarea id="editor_fallback" placeholder="// Nội dung file..."></textarea>';
+    }
+  }
+  function setEditorContent(v){ if(fallback){ $('#editor_fallback').value = v||''; } else { editor.setValue(v||'', -1); } }
+  function getEditorContent(){ return fallback ? ($('#editor_fallback').value||'') : editor.getValue(); }
+  function setEditorModeByLang(lang){ if(fallback) return; try{ editor.session.setMode(`ace/mode/${lang}`); }catch{ editor.session.setMode('ace/mode/text'); } }
+
   async function ensureAce(){
-    if(window.ace){ return; }
+    if(window.ace) return true;
     try{
       await loadScript('https://cdn.jsdelivr.net/npm/ace-builds@1.43.3/src-min-noconflict/ace.js');
+      await loadScript('https://cdn.jsdelivr.net/npm/ace-builds@1.43.3/src-min-noconflict/ext-language_tools.js');
+      await loadScript('https://cdn.jsdelivr.net/npm/ace-builds@1.43.3/src-min-noconflict/ext-modelist.js');
+      ace.config.set('basePath','https://cdn.jsdelivr.net/npm/ace-builds@1.43.3/src-min-noconflict');
       log('Ace loaded from jsDelivr');
-    }catch(err){
-      log('Primary CDN failed, trying unpkg...', 'error');
-      await loadScript('https://unpkg.com/ace-builds@1.43.3/src-min-noconflict/ace.js');
-      log('Ace loaded from unpkg');
+      return true;
+    }catch(e){
+      log('jsDelivr failed, trying unpkg...', 'error');
+      try{
+        await loadScript('https://unpkg.com/ace-builds@1.43.3/src-min-noconflict/ace.js');
+        await loadScript('https://unpkg.com/ace-builds@1.43.3/src-min-noconflict/ext-language_tools.js');
+        await loadScript('https://unpkg.com/ace-builds@1.43.3/src-min-noconflict/ext-modelist.js');
+        ace.config.set('basePath','https://unpkg.com/ace-builds@1.43.3/src-min-noconflict');
+        log('Ace loaded from unpkg');
+        return true;
+      }catch(err){
+        log('All CDNs failed. Using textarea fallback.', 'error');
+        return false;
+      }
     }
-    if(window.ace){ ace.config.set('basePath','https://cdn.jsdelivr.net/npm/ace-builds@1.43.3/src-min-noconflict'); }
-    try{ await loadScript('https://cdn.jsdelivr.net/npm/ace-builds@1.43.3/src-min-noconflict/ext-language_tools.js'); }catch{ await loadScript('https://unpkg.com/ace-builds@1.43.3/src-min-noconflict/ext-language_tools.js'); }
-    try{ await loadScript('https://cdn.jsdelivr.net/npm/ace-builds@1.43.3/src-min-noconflict/ext-modelist.js'); }catch{ await loadScript('https://unpkg.com/ace-builds@1.43.3/src-min-noconflict/ext-modelist.js'); }
   }
 
-  await ensureAce();
-  let modelist = ace.require("ace/ext/modelist");
-  let editor = ace.edit(editorEl);
-  editor.setTheme("ace/theme/one_dark");
-  editor.setOptions({
-    fontSize: "14px",
-    showPrintMargin:false,
-    enableBasicAutocompletion:true,
-    enableSnippets:true,
-    enableLiveAutocompletion:true,
-  });
-
-  $1
-
-  function guessLangByExt(name){
-    const m = /(\.[^.]+)$/.exec(name||'');
-    const ext = (m?m[1].slice(1):'').toLowerCase();
+  const state = { projectName:'my-project', files:[], current:-1 };
+  function guessLang(name){
+    const m = (name||'').toLowerCase().match(/\.([a-z0-9]+)$/);
+    const ext = m? m[1] : '';
     switch(ext){
       case 'js': case 'mjs': case 'cjs': return 'javascript';
       case 'ts': case 'tsx': return 'javascript';
@@ -149,138 +170,101 @@
     }
   }
 
-  function inferLangFromName(name){
-    const mode = modelist.getModeForPath(name);
-    return (mode && mode.name) || 'text';
-  }
-  function setEditorModeByLang(lang){
-    try { editor.session.setMode(`ace/mode/${lang}`); }
-    catch(e){ editor.session.setMode('ace/mode/text'); }
-  }
-
-  function selectFile(idx){
-    if(idx < 0 || idx >= state.files.length) return;
-    // autosave current
-    if(state.current >= 0){
-      state.files[state.current].content = editor.getValue();
-    }
-    state.current = idx;
-    const f = state.files[idx];
-    currentPathEl.textContent = f.name;
-    langChipEl.textContent = `lang: ${f.language}`;
-    setEditorModeByLang(f.language);
-    editor.setValue(f.content || '', -1);
-    renderList();
-  }
-
   function renderList(filter=''){
     fileListEl.innerHTML = '';
-    const normalized = filter.toLowerCase();
-    state.files.forEach((f, i) => {
-      if(normalized && !f.name.toLowerCase().includes(normalized)) return;
-      const row = document.createElement('div');
-      row.className = 'file' + (i===state.current?' active':'');
+    const needle = filter.toLowerCase();
+    state.files.forEach((f,i)=>{
+      if(needle && !f.name.toLowerCase().includes(needle)) return;
+      const row = document.createElement('div'); row.className = 'file'+(i===state.current?' active':'');
       const name = document.createElement('div'); name.className='name'; name.textContent = f.name;
-      const tag = document.createElement('div'); tag.className='tags'; tag.textContent = f.language;
+      const tag = document.createElement('div'); tag.className='tags'; tag.textContent = f.language||'';
       row.appendChild(name); row.appendChild(tag);
       row.addEventListener('click', ()=> selectFile(i));
       fileListEl.appendChild(row);
     });
   }
 
+  function selectFile(i){
+    if(i<0 || i>=state.files.length) return;
+    if(state.current>=0){ state.files[state.current].content = getEditorContent(); }
+    state.current = i;
+    const f = state.files[i];
+    currentPathEl.textContent = f.name;
+    langChipEl.textContent = f.language ? `lang: ${f.language}` : '';
+    setEditorModeByLang(f.language||'text');
+    setEditorContent(f.content||'');
+    renderList($('#search').value);
+  }
+
   function addFile(){
-    let name = prompt('Tên file mới (vd: index.html, main.js, styles.css):','index.html');
-    if(!name) return;
-    if(state.files.some(f=>f.name===name)) return alert('Trùng tên file.');
-    const language = inferLangFromName(name).replace('objectivec','objective_c');
+    let name = prompt('Tên file mới (vd: index.html, main.js, styles.css, Program.cs):','index.html');
+    if(!name) return; if(state.files.some(f=>f.name===name)) return alert('Trùng tên file.');
+    const language = guessLang(name);
     state.files.push({name, language, content:''});
-    if(state.current === -1) state.current = 0;
     selectFile(state.files.length-1);
-    renderList();
   }
-
   function renameFile(){
-    if(state.current<0) return;
-    const cur = state.files[state.current];
+    if(state.current<0) return; const cur = state.files[state.current];
     const next = prompt('Đổi tên file thành:', cur.name);
-    if(!next || next===cur.name) return;
-    if(state.files.some(f=>f.name===next)) return alert('Tên đã tồn tại.');
-    cur.name = next;
-    cur.language = inferLangFromName(next);
+    if(!next || next===cur.name) return; if(state.files.some(f=>f.name===next)) return alert('Tên đã tồn tại.');
+    cur.name = next; cur.language = guessLang(next);
     selectFile(state.current);
-    renderList();
   }
-
   function deleteFile(){
-    if(state.current<0) return;
-    const cur = state.files[state.current];
-    if(!confirm(`Xoá file "${cur.name}"?`)) return;
+    if(state.current<0) return; const cur = state.files[state.current];
+    if(!confirm('Xoá file "'+cur.name+'"?')) return;
     state.files.splice(state.current,1);
     state.current = Math.min(state.current, state.files.length-1);
-    if(state.current>=0) selectFile(state.current); else { editor.setValue('', -1); currentPathEl.textContent='(chưa có file)'; langChipEl.textContent=''; }
-    renderList();
+    if(state.current>=0) selectFile(state.current);
+    else { setEditorContent(''); currentPathEl.textContent='(chưa có file)'; langChipEl.textContent=''; }
   }
-
   function exportJson(){
-    if(state.current>=0){ state.files[state.current].content = editor.getValue(); }
-    const project = {
-      projectName: projectNameEl.value.trim() || state.projectName,
-      generatedAt: new Date().toISOString(),
-      files: state.files,
-    };
-    const blob = new Blob([JSON.stringify(project, null, 2)], {type:'application/json'});
+    if(state.current>=0){ state.files[state.current].content = getEditorContent(); }
+    const project = { projectName: projectNameEl.value.trim() || state.projectName, generatedAt: new Date().toISOString(), files: state.files };
+    const blob = new Blob([JSON.stringify(project,null,2)], {type:'application/json'});
     const a = document.createElement('a');
-    const name = (project.projectName || 'project').replace(/[^a-z0-9-_]/gi,'-');
-    a.download = `${name}.codeproject.json`;
-    a.href = URL.createObjectURL(blob);
-    a.click();
-    URL.revokeObjectURL(a.href);
-    statusEl.textContent = 'Đã xuất gói .json';
+    const safe = (project.projectName||'project').replace(/[^a-z0-9-_]/gi,'-');
+    a.download = `${safe}.codeproject.json`; a.href = URL.createObjectURL(blob); a.click(); URL.revokeObjectURL(a.href);
+    log('Đã xuất gói .json');
   }
-
   function importJsonFile(file){
     const reader = new FileReader();
-    reader.onload = () => {
+    reader.onload = ()=>{
       try{
         const data = JSON.parse(reader.result);
         if(!Array.isArray(data.files)) throw new Error('Sai định dạng: thiếu files[]');
-        state.files = data.files.map(f=>({ name: f.name, language: f.language || inferLangFromName(f.name), content: f.content||'' }));
-        state.projectName = data.projectName || 'imported-project';
-        projectNameEl.value = state.projectName;
-        state.current = 0;
-        selectFile(0);
-        renderList();
-        statusEl.textContent = 'Đã nạp gói JSON.';
+        state.files = data.files.map(f=>({ name:f.name, language:(f.language||guessLang(f.name)), content:(f.content||'') }));
+        state.projectName = data.projectName || 'imported-project'; projectNameEl.value = state.projectName;
+        selectFile(0); renderList(); log('Đã nạp gói JSON.');
       }catch(e){ alert('Không đọc được JSON: '+ e.message); }
     };
     reader.readAsText(file);
   }
 
-  // events
-  el('#btnNew').addEventListener('click', addFile);
-  el('#btnRename').addEventListener('click', renameFile);
-  el('#btnDelete').addEventListener('click', deleteFile);
-  el('#btnExport').addEventListener('click', exportJson);
-  el('#importInput').addEventListener('change', (e)=>{ if(e.target.files[0]) importJsonFile(e.target.files[0]); e.target.value=''; });
-  el('#search').addEventListener('input', e=> renderList(e.target.value));
+  // Sự kiện
+  $('#btnNew').addEventListener('click', addFile);
+  $('#btnRename').addEventListener('click', renameFile);
+  $('#btnDelete').addEventListener('click', deleteFile);
+  $('#btnExport').addEventListener('click', exportJson);
+  $('#importInput').addEventListener('change', (e)=>{ if(e.target.files[0]) importJsonFile(e.target.files[0]); e.target.value=''; });
+  $('#search').addEventListener('input', e=> renderList(e.target.value));
   projectNameEl.addEventListener('input', e=> state.projectName = e.target.value);
-  editor.session.on('change', ()=>{ if(state.current>=0){ statusEl.textContent = 'Đã thay đổi (chưa xuất)'; } });
 
-  // seed sample
-  state.files = [
-    {name:'index.html', language:'html', content:'<!doctype html>
-<html>
-  <head><meta charset="utf-8"><title>Hello</title></head>
-  <body>Xin chào!</body>
-</html>'},
-    {name:'main.js', language:'javascript', content:'console.log("Hello world")'},
-    {name:'styles.css', language:'css', content:'body{font-family:sans-serif;}'},
-    {name:'Program.cs', language:'csharp', content:'using System;
-class P { static void Main(){ Console.WriteLine("Xin chào C#"); } }'}
-  ];
-  projectNameEl.value = state.projectName;
-  selectFile(0);
-  renderList();
+  (async ()=>{
+    const ok = await ensureAce();
+    if(ok){ modelist = ace.require('ace/ext/modelist'); ensureEditor(); editor.session.on('change', ()=>{ if(state.current>=0){ statusEl.textContent='Đã thay đổi (chưa xuất)'; } }); }
+    else { ensureEditor(); $('#editor_fallback').addEventListener('input', ()=>{ if(state.current>=0){ statusEl.textContent='Đã thay đổi (chưa xuất)'; } }); }
+
+    // seed sample (dùng \n, không xuống dòng thật)
+    state.files = [
+      {name:'index.html', language:'html', content:'<!doctype html>\n<html>\n  <head><meta charset="utf-8"><title>Hello</title></head>\n  <body>Xin chào!</body>\n</html>'},
+      {name:'main.js', language:'javascript', content:'console.log("Hello world")'},
+      {name:'styles.css', language:'css', content:'body{font-family:sans-serif;}'},
+      {name:'Program.cs', language:'csharp', content:'using System;\nclass P { static void Main(){ Console.WriteLine("Xin chào C#"); } }'}
+    ];
+    projectNameEl.value = state.projectName;
+    selectFile(0); renderList();
+  })();
 })();
 </script>
 </body>
